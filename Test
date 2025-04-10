@@ -1,0 +1,549 @@
+xplogtab--------
+import React, { useEffect, useState } from "react";
+
+export default function XpLogTab({ selectedKid }) {
+  const [log, setLog] = useState([]);
+  const [filteredLog, setFilteredLog] = useState([]);
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [minXp, setMinXp] = useState("");
+  const [maxXp, setMaxXp] = useState("");
+  const [timeRange, setTimeRange] = useState("all");
+
+  useEffect(() => {
+    const stored = localStorage.getItem(`xp_log_${selectedKid}`);
+    const parsed = stored ? JSON.parse(stored) : [];
+    setLog(parsed);
+    setFilteredLog(parsed);
+  }, [selectedKid]);
+
+  useEffect(() => {
+    let filtered = [...log];
+    if (typeFilter !== "all") {
+      filtered = filtered.filter((entry) => entry.type === typeFilter);
+    }
+    if (minXp !== "") {
+      filtered = filtered.filter((entry) => entry.xp >= parseInt(minXp));
+    }
+    if (maxXp !== "") {
+      filtered = filtered.filter((entry) => entry.xp <= parseInt(maxXp));
+    }
+    if (timeRange !== "all") {
+      const now = new Date();
+      let start;
+      const day = now.getDay();
+      const date = now.getDate();
+
+      if (timeRange === "this_week") {
+        start = new Date(now);
+        start.setDate(date - day);
+      } else if (timeRange === "last_week") {
+        start = new Date(now);
+        start.setDate(date - day - 7);
+        const end = new Date(start);
+        end.setDate(start.getDate() + 6);
+        filtered = filtered.filter((entry) => {
+          const d = new Date(entry.date);
+          return d >= start && d <= end;
+        });
+        setFilteredLog(filtered);
+        return;
+      } else if (timeRange === "this_month") {
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+      } else if (timeRange === "last_month") {
+        start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const end = new Date(now.getFullYear(), now.getMonth(), 0);
+        filtered = filtered.filter((entry) => {
+          const d = new Date(entry.date);
+          return d >= start && d <= end;
+        });
+        setFilteredLog(filtered);
+        return;
+      }
+
+      filtered = filtered.filter((entry) => new Date(entry.date) >= start);
+    }
+    setFilteredLog(filtered);
+  }, [typeFilter, minXp, maxXp, log]);
+
+  const handleExport = () => {
+    const headers = ["id", "kid", "type", "xp", "description", "note", "date"];
+    const csv = [headers.join(",")].concat(
+      filteredLog.map((entry) =>
+        headers.map((h) => `"${(entry[h] || "").toString().replace(/"/g, '""')}"`).join(",")
+      )
+    ).join("
+");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `xp_log_${selectedKid}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+  
+
+  const getColor = (xp) => {
+    if (xp > 0) return "text-green-600";
+    if (xp < 0) return "text-red-600";
+    return "text-gray-500";
+  };
+
+  const totalXp = filteredLog.reduce((sum, e) => sum + e.xp, 0);
+const count = filteredLog.length;
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-xl font-semibold">XP Log for {selectedKid}</h2>
+      <p className="text-sm text-gray-700">Entries: {count} | Total XP: <span className={`${getColor(totalXp)} font-semibold`}>{totalXp >= 0 ? '+' : ''}{totalXp} XP</span></p>
+      <div className="flex flex-wrap gap-4 items-end mb-4">
+        <label className="block">
+          Time:
+          <select value={timeRange} onChange={(e) => setTimeRange(e.target.value)} className="ml-2 border rounded px-2 py-1">
+            <option value="all">All Time</option>
+            <option value="this_week">This Week</option>
+            <option value="last_week">Last Week</option>
+            <option value="this_month">This Month</option>
+            <option value="last_month">Last Month</option>
+          </select>
+        </label>
+
+        <label className="block">
+          Type:
+          <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="ml-2 border rounded px-2 py-1">
+            <option value="all">All</option>
+            <option value="chore_approved">Chore Approved</option>
+            <option value="reward">Reward Claimed</option>
+            <option value="penalty_approved">Penalty</option>
+            <option value="penalty_waived">Penalty Waived</option>
+          </select>
+        </label>
+        <label className="block">
+          Min XP:
+          <input type="number" value={minXp} onChange={(e) => setMinXp(e.target.value)} className="ml-2 border rounded px-2 py-1 w-20" />
+        </label>
+        <label className="block">
+          Max XP:
+          <input type="number" value={maxXp} onChange={(e) => setMaxXp(e.target.value)} className="ml-2 border rounded px-2 py-1 w-20" />
+        </label>
+        <button onClick={handleExport} className="bg-blue-600 text-white px-4 py-1 rounded shadow">
+          Export CSV
+        </button>
+      </div>
+      {filteredLog.length === 0 ? (
+        <p className="text-gray-600">No XP log entries found.</p>
+      ) : (
+        <ul className="divide-y divide-gray-200">
+          {filteredLog
+            .sort((a, b) => new Date(b.date) - new Date(a.date))
+            .map((entry) => (
+              <li key={entry.id} className="py-2">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="font-medium">{entry.description}</p>
+                    <p className="text-sm text-gray-500">{new Date(entry.date).toLocaleString()}</p>
+                    {entry.note && <p className="text-sm italic text-gray-400 mt-1">Note: {entry.note}</p>}
+                  </div>
+                  <div className={`font-bold ${getColor(entry.xp)}`}>{entry.xp > 0 ? "+" : ""}{entry.xp} XP</div>
+                </div>
+              </li>
+            ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+
+kidrewardlist-----------
+
+import React from "react";
+import toast from "react-hot-toast";
+
+export default function KidRewardList({ kid, rewards, xp, onClaim }) {
+  
+              localStorage.setItem(key, JSON.stringify([...log, entry]));
+              toast.dismiss(t.id);
+              toast.success(`🎁 ${reward.title} claimed! -${reward.cost} XP`, {
+                duration: 4000,
+                position: "bottom-center",
+              });
+            }}
+          >
+            Confirm
+          </button>
+          <button
+            className="bg-red-500 text-white px-3 py-1 rounded text-sm"
+            onClick={() => toast.dismiss(t.id)}
+          >
+            Undo
+          </button>
+        </div>
+      </div>
+    ), {
+      duration: 10000,
+      position: "bottom-center",
+    });
+  };
+
+  return (
+    <div>
+      <h2 className="font-semibold text-lg mb-2">Rewards</h2>
+      <ul className="space-y-2">
+        {rewards.map((r) => (
+          <li
+            key={r.id}
+            className={`p-2 border rounded ${
+              xp < r.cost ? "opacity-50" : "bg-yellow-50"
+            }`}
+          >
+            <strong>{r.title}</strong> – {r.cost} XP
+            <div className="w-full h-2 bg-gray-200 rounded mt-1 relative">
+              <div
+                className="h-full bg-green-500 rounded"
+                style={{ width: `${Math.min(100, (getXp(kid.name) / r.cost) * 100)}%` }}
+              ></div>
+              <div className="absolute inset-0 flex items-center justify-center text-xs text-white font-semibold">
+                {Math.floor(Math.min(100, (getXp(kid.name) / r.cost) * 100))}%
+              </div>
+            </div>
+            </div>
+            {getXp(kid.name) >= r.cost && (
+              <button
+                className="ml-2 bg-green-500 text-white px-2 py-1 rounded text-xs"
+                onClick={() => onClaim(r)}
+              >
+                Claim
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+
+kidcolumn-----------------
+
+import React, { useEffect, useState } from "react";
+import KidChoreList from "./KidChoreList";
+import KidRewardList from "./KidRewardList";
+import toast from "react-hot-toast";
+
+export default function KidColumn({ kid, chores, rewards, onSubmitChore }) {
+  const [xp, setXp] = useState(0);
+
+  useEffect(() => {
+    const key = `xp_log_${kid.name}`;
+    const log = JSON.parse(localStorage.getItem(key) || "[]");
+    const currentXp = log.reduce((total, entry) => total + entry.xp, 0);
+    setXp(currentXp);
+  }, []);
+
+  const refreshXp = () => {
+    const key = `xp_log_${kid.name}`;
+    const log = JSON.parse(localStorage.getItem(key) || "[]");
+    const currentXp = log.reduce((total, entry) => total + entry.xp, 0);
+    setXp(currentXp);
+  };
+
+  const handleClaim = (reward) => {
+    toast((t) => (
+      <div className="space-y-2">
+        <p>Claim <strong>{reward.title}</strong> for {reward.cost} XP?</p>
+        <div className="flex gap-2">
+          <button
+            className="bg-green-500 text-white px-3 py-1 rounded text-sm"
+            onClick={() => {
+              const key = `xp_log_${kid.name}`;
+              const log = JSON.parse(localStorage.getItem(key) || "[]");
+              const entry = {
+                id: Date.now(),
+                kid: kid.name,
+                type: "reward_claimed",
+                xp: -reward.cost,
+                description: `Claimed: ${reward.title}`,
+                date: new Date().toISOString(),
+              };
+              localStorage.setItem(key, JSON.stringify([...log, entry]));
+              toast.dismiss(t.id);
+              toast.success(`🎁 ${reward.title} claimed! -${reward.cost} XP`, {
+                duration: 4000,
+                position: "bottom-center"
+              });
+              refreshXp();
+            }}
+          >
+            Confirm
+          </button>
+          <button
+            className="bg-red-500 text-white px-3 py-1 rounded text-sm"
+            onClick={() => toast.dismiss(t.id)}
+          >
+            Undo
+          </button>
+        </div>
+      </div>
+    ), {
+      duration: 10000,
+      position: "bottom-center",
+    });
+  };
+  const [view, setView] = useState("chores");
+  const [lastSwitch, setLastSwitch] = useState(Date.now());
+
+  const handleToggle = () => {
+    setView((prev) => (prev === "rewards" ? "chores" : "rewards"));
+    setLastSwitch(Date.now());
+  };
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (view === "rewards" && Date.now() - lastSwitch > 60000) {
+        setView("chores");
+      }
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [view, lastSwitch]);
+
+  return (
+    <div className="flex-1 border rounded-lg p-3 bg-white shadow-md">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-2xl">{kid.avatar}</span>
+        <span className="text-lg font-semibold">{kid.name}</span>
+        <button
+          onClick={handleToggle}
+          className="bg-purple-600 text-white px-3 py-1 rounded text-sm"
+        >
+          XP: {xp}
+        </button>
+      </div>
+      {view === "rewards" ? (
+        <KidRewardList kid={kid} rewards={rewards} xp={xp} onClaim={handleClaim} />
+      ) : (
+        <KidChoreList
+          chores={chores}
+          onSubmitChore={onSubmitChore}
+        />
+      )}
+    </div>
+  );
+}
+
+
+kidview----------------
+
+import React, { useEffect, useState } from "react";
+import KidChoreList from "./KidChoreList";
+
+const mockKids = [
+  { name: "Luna", avatar: "🦊" },
+  { name: "Milo", avatar: "🐻" },
+];
+
+const getChores = (kid) => {
+  const all = JSON.parse(localStorage.getItem("chores") || "[]");
+  return all.filter((c) => c.assignedTo?.includes(kid) && !c._deleted && !c.completed);
+};
+
+const getRewards = () => {
+  return JSON.parse(localStorage.getItem("rewards") || "[]");
+};
+
+export default function KidView() {
+  const [viewState, setViewState] = useState({});
+  const [lastInteraction, setLastInteraction] = useState({});
+
+  const handleToggle = (kid) => {
+    setViewState((prev) => ({ ...prev, [kid]: prev[kid] === "rewards" ? "chores" : "rewards" }));
+    setLastInteraction((prev) => ({ ...prev, [kid]: Date.now() }));
+  };
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setViewState((prevState) => {
+        const updated = { ...prevState };
+        for (const kid of mockKids.map((k) => k.name)) {
+          if (updated[kid] === "rewards" && Date.now() - (lastInteraction[kid] || 0) > 60000) {
+            updated[kid] = "chores";
+          }
+        }
+        return updated;
+      });
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [lastInteraction]);
+
+  const getXp = (kid) => {
+    const key = `xp_log_${kid}`;
+    const log = JSON.parse(localStorage.getItem(key) || "[]");
+    return log.reduce((total, entry) => total + entry.xp, 0);
+  }; // mock XP for now
+
+  return (
+    <div className="flex flex-col md:flex-row justify-center gap-4 p-4">
+      {mockKids.map((kid) => (
+        <div key={kid.name} className="flex-1 border rounded-lg p-3 bg-white shadow-md">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-2xl">{kid.avatar}</span>
+            <span className="text-lg font-semibold">{kid.name}</span>
+            <button
+              onClick={() => handleToggle(kid.name)}
+              className="bg-purple-600 text-white px-3 py-1 rounded text-sm"
+            >
+              XP: {getXp(kid.name)}
+            </button>
+          </div>
+          {viewState[kid.name] === "rewards" ? (
+            <div>
+              <h2 className="font-semibold text-lg mb-2">Rewards</h2>
+              <ul className="space-y-2">
+                {getRewards().map((r) => (
+                  <li
+                    key={r.id}
+                    className={`p-2 border rounded ${
+                      getXp(kid.name) < r.cost ? "opacity-50" : "bg-yellow-50"
+                    }`}
+                  >
+                    <strong>{r.title}</strong> – {r.cost} XP
+                    {getXp(kid.name) >= r.cost && (
+                      <button
+                        className="ml-2 bg-green-500 text-white px-2 py-1 rounded text-xs"
+                        onClick={() => {
+                          toast((t) => (
+                            <div className="space-y-2">
+                              <p>Claim <strong>{r.title}</strong> for {r.cost} XP?</p>
+                              <div className="flex gap-2">
+                                <button
+                                  className="bg-green-500 text-white px-3 py-1 rounded text-sm"
+                                  onClick={() => {
+                                    const key = `xp_log_${kid.name}`;
+                                    const log = JSON.parse(localStorage.getItem(key) || "[]");
+                                    const entry = {
+                                      id: Date.now(),
+                                      kid: kid.name,
+                                      type: "reward_claimed",
+                                      xp: -r.cost,
+                                      description: `Claimed: ${r.title}`,
+                                      date: new Date().toISOString(),
+                                    };
+                                    localStorage.setItem(key, JSON.stringify([...log, entry]));
+                                    toast.dismiss(t.id);
+                                    toast.success(`🎁 ${r.title} claimed! -${r.cost} XP`, {
+                                      duration: 4000,
+                                      position: "bottom-center"
+                                    });
+                                  }}
+                                >
+                                  Confirm
+                                </button>
+                                <button
+                                  className="bg-red-500 text-white px-3 py-1 rounded text-sm"
+                                  onClick={() => toast.dismiss(t.id)}
+                                >
+                                  Undo
+                                </button>
+                              </div>
+                            </div>
+                          ), {
+                            duration: 10000,
+                            position: "bottom-center"
+                          });
+                        }
+                      >
+                        Claim
+                      </button>
+                    )
+                  </li>
+                ))}
+              </ul>
+              <button
+                onClick={() => handleToggle(kid.name)}
+                className="mt-4 bg-gray-300 px-3 py-1 rounded"
+              >
+                Back to Chores
+              </button>
+            </div>
+          ) : (
+            <KidChoreList
+              chores={getChores(kid.name)}
+              onSubmitChore={(chore) => {
+              const key = `xp_log_${chore.kid}`;
+              const log = JSON.parse(localStorage.getItem(key) || "[]");
+              const xp = chore.xp || 10;
+              const entry = {
+                id: Date.now(),
+                kid: chore.kid,
+                type: "chore_completed",
+                xp,
+                description: `Completed: ${chore.title}`,
+                date: new Date().toISOString(),
+              };
+              localStorage.setItem(key, JSON.stringify([...log, entry]));
+              const allChores = JSON.parse(localStorage.getItem("chores") || "[]");
+              const updated = allChores.map((c) =>
+                c.id === chore.id ? { ...c, completed: true } : c
+              );
+              localStorage.setItem("chores", JSON.stringify(updated));
+              toast.success(`✅ ${chore.title} completed! +${xp} XP`, {
+                duration: 4000,
+                position: "bottom-center"
+              });
+            }}
+            />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
+kidchorelist-----------------------
+
+import React, { useState } from "react";
+import toast from "react-hot-toast";
+
+export default function KidChoreList({ chores, onSubmitChore }) {
+  const [pendingChoreId, setPendingChoreId] = useState(null);
+  const [visibleChores, setVisibleChores] = useState(chores);
+
+  const refresh = () => {
+    const updated = JSON.parse(localStorage.getItem("chores") || "[]");
+    const filtered = updated.filter((c) => chores.some((orig) => orig.id === c.id && !c.completed));
+    setVisibleChores(filtered);
+  };
+  const [refreshToggle, setRefreshToggle] = useState(false);
+  const refresh = () => setRefreshToggle((prev) => !prev);
+  const getIconForChore = (title) => {
+    const lower = title.toLowerCase();
+    if (lower.includes("brush") || lower.includes("teeth")) return "🪥";
+    if (lower.includes("trash")) return "🗑️";
+    if (lower.includes("bed")) return "🛏️";
+    if (lower.includes("book") || lower.includes("read")) return "📚";
+    if (lower.includes("table") || lower.includes("dishes")) return "🍽️";
+    return "🧹";
+  };
+  const [pendingChoreId, setPendingChoreId] = useState(null);
+
+  const handleMarkDone = (chore) => {
+    if (pendingChoreId === chore.id) return; // prevent multiple toasts for same chore
+    setPendingChoreId(chore.id);
+
+    if (chore.status === "approved") {
+      // Show final XP toast and remove from list
+      const key = `xp_log_${chore.kid}`;
+      const log = JSON.parse(localStorage.getItem(key) || "[]");
+      const totalXp = log.reduce((acc, entry) => acc + entry.xp, 0);
+
+      toast.success(
+        `🎉 Good job! You earned ${chore.xp || 10} XP. Your total is now ${totalXp} XP.`,
+        { duration: 6000, position: "bottom-center" }
+      );
+
+      const updated = JSON.parse(localStorage.getItem("chores") || "[]").map((c) =>
+        c.id === chore.id ? { ...c, completed: true } : c
+      );
+      localStorage.setItem("chores",
