@@ -1,0 +1,2311 @@
+﻿xplogtab--------
+import React, { useEffect, useState } from "react";
+
+
+export default function XpLogTab({ selectedKid }) {
+  const [log, setLog] = useState([]);
+  const [filteredLog, setFilteredLog] = useState([]);
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [minXp, setMinXp] = useState("");
+  const [maxXp, setMaxXp] = useState("");
+  const [timeRange, setTimeRange] = useState("all");
+
+
+  useEffect(() => {
+    const stored = localStorage.getItem(`xp_log_${selectedKid}`);
+    const parsed = stored ? JSON.parse(stored) : [];
+    setLog(parsed);
+    setFilteredLog(parsed);
+  }, [selectedKid]);
+
+
+  useEffect(() => {
+    let filtered = [...log];
+    if (typeFilter !== "all") {
+      filtered = filtered.filter((entry) => entry.type === typeFilter);
+    }
+    if (minXp !== "") {
+      filtered = filtered.filter((entry) => entry.xp >= parseInt(minXp));
+    }
+    if (maxXp !== "") {
+      filtered = filtered.filter((entry) => entry.xp <= parseInt(maxXp));
+    }
+    if (timeRange !== "all") {
+      const now = new Date();
+      let start;
+      const day = now.getDay();
+      const date = now.getDate();
+
+
+      if (timeRange === "this_week") {
+        start = new Date(now);
+        start.setDate(date - day);
+      } else if (timeRange === "last_week") {
+        start = new Date(now);
+        start.setDate(date - day - 7);
+        const end = new Date(start);
+        end.setDate(start.getDate() + 6);
+        filtered = filtered.filter((entry) => {
+          const d = new Date(entry.date);
+          return d >= start && d <= end;
+        });
+        setFilteredLog(filtered);
+        return;
+      } else if (timeRange === "this_month") {
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+      } else if (timeRange === "last_month") {
+        start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const end = new Date(now.getFullYear(), now.getMonth(), 0);
+        filtered = filtered.filter((entry) => {
+          const d = new Date(entry.date);
+          return d >= start && d <= end;
+        });
+        setFilteredLog(filtered);
+        return;
+      }
+
+
+      filtered = filtered.filter((entry) => new Date(entry.date) >= start);
+    }
+    setFilteredLog(filtered);
+  }, [typeFilter, minXp, maxXp, log]);
+
+
+  const handleExport = () => {
+    const headers = ["id", "kid", "type", "xp", "description", "note", "date"];
+    const csv = [headers.join(",")].concat(
+      filteredLog.map((entry) =>
+        headers.map((h) => `"${(entry[h] || "").toString().replace(/"/g, '""')}"`).join(",")
+      )
+    ).join("
+");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `xp_log_${selectedKid}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+  
+
+
+  const getColor = (xp) => {
+    if (xp > 0) return "text-green-600";
+    if (xp < 0) return "text-red-600";
+    return "text-gray-500";
+  };
+
+
+  const totalXp = filteredLog.reduce((sum, e) => sum + e.xp, 0);
+const count = filteredLog.length;
+
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-xl font-semibold">XP Log for {selectedKid}</h2>
+      <p className="text-sm text-gray-700">Entries: {count} | Total XP: <span className={`${getColor(totalXp)} font-semibold`}>{totalXp >= 0 ? '+' : ''}{totalXp} XP</span></p>
+      <div className="flex flex-wrap gap-4 items-end mb-4">
+        <label className="block">
+          Time:
+          <select value={timeRange} onChange={(e) => setTimeRange(e.target.value)} className="ml-2 border rounded px-2 py-1">
+            <option value="all">All Time</option>
+            <option value="this_week">This Week</option>
+            <option value="last_week">Last Week</option>
+            <option value="this_month">This Month</option>
+            <option value="last_month">Last Month</option>
+          </select>
+        </label>
+
+
+        <label className="block">
+          Type:
+          <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="ml-2 border rounded px-2 py-1">
+            <option value="all">All</option>
+            <option value="chore_approved">Chore Approved</option>
+            <option value="reward">Reward Claimed</option>
+            <option value="penalty_approved">Penalty</option>
+            <option value="penalty_waived">Penalty Waived</option>
+          </select>
+        </label>
+        <label className="block">
+          Min XP:
+          <input type="number" value={minXp} onChange={(e) => setMinXp(e.target.value)} className="ml-2 border rounded px-2 py-1 w-20" />
+        </label>
+        <label className="block">
+          Max XP:
+          <input type="number" value={maxXp} onChange={(e) => setMaxXp(e.target.value)} className="ml-2 border rounded px-2 py-1 w-20" />
+        </label>
+        <button onClick={handleExport} className="bg-blue-600 text-white px-4 py-1 rounded shadow">
+          Export CSV
+        </button>
+      </div>
+      {filteredLog.length === 0 ? (
+        <p className="text-gray-600">No XP log entries found.</p>
+      ) : (
+        <ul className="divide-y divide-gray-200">
+          {filteredLog
+            .sort((a, b) => new Date(b.date) - new Date(a.date))
+            .map((entry) => (
+              <li key={entry.id} className="py-2">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="font-medium">{entry.description}</p>
+                    <p className="text-sm text-gray-500">{new Date(entry.date).toLocaleString()}</p>
+                    {entry.note && <p className="text-sm italic text-gray-400 mt-1">Note: {entry.note}</p>}
+                  </div>
+                  <div className={`font-bold ${getColor(entry.xp)}`}>{entry.xp > 0 ? "+" : ""}{entry.xp} XP</div>
+                </div>
+              </li>
+            ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+
+
+
+kidrewardlist-----------
+
+
+import React from "react";
+import toast from "react-hot-toast";
+
+
+export default function KidRewardList({ kid, rewards, xp, onClaim }) {
+  
+              localStorage.setItem(key, JSON.stringify([...log, entry]));
+              toast.dismiss(t.id);
+              toast.success(`🎁 ${reward.title} claimed! -${reward.cost} XP`, {
+                duration: 4000,
+                position: "bottom-center",
+              });
+            }}
+          >
+            Confirm
+          </button>
+          <button
+            className="bg-red-500 text-white px-3 py-1 rounded text-sm"
+            onClick={() => toast.dismiss(t.id)}
+          >
+            Undo
+          </button>
+        </div>
+      </div>
+    ), {
+      duration: 10000,
+      position: "bottom-center",
+    });
+  };
+
+
+  return (
+    <div>
+      <h2 className="font-semibold text-lg mb-2">Rewards</h2>
+      <ul className="space-y-2">
+        {rewards.map((r) => (
+          <li
+            key={r.id}
+            className={`p-2 border rounded ${
+              xp < r.cost ? "opacity-50" : "bg-yellow-50"
+            }`}
+          >
+            <strong>{r.title}</strong> – {r.cost} XP
+            <div className="w-full h-2 bg-gray-200 rounded mt-1 relative">
+              <div
+                className="h-full bg-green-500 rounded"
+                style={{ width: `${Math.min(100, (getXp(kid.name) / r.cost) * 100)}%` }}
+              ></div>
+              <div className="absolute inset-0 flex items-center justify-center text-xs text-white font-semibold">
+                {Math.floor(Math.min(100, (getXp(kid.name) / r.cost) * 100))}%
+              </div>
+            </div>
+            </div>
+            {getXp(kid.name) >= r.cost && (
+              <button
+                className="ml-2 bg-green-500 text-white px-2 py-1 rounded text-xs"
+                onClick={() => onClaim(r)}
+              >
+                Claim
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+
+
+
+kidcolumn-----------------
+
+
+import React, { useEffect, useState } from "react";
+import KidChoreList from "./KidChoreList";
+import KidRewardList from "./KidRewardList";
+import toast from "react-hot-toast";
+
+
+export default function KidColumn({ kid, chores, rewards, onSubmitChore }) {
+  const [xp, setXp] = useState(0);
+
+
+  useEffect(() => {
+    const key = `xp_log_${kid.name}`;
+    const log = JSON.parse(localStorage.getItem(key) || "[]");
+    const currentXp = log.reduce((total, entry) => total + entry.xp, 0);
+    setXp(currentXp);
+  }, []);
+
+
+  const refreshXp = () => {
+    const key = `xp_log_${kid.name}`;
+    const log = JSON.parse(localStorage.getItem(key) || "[]");
+    const currentXp = log.reduce((total, entry) => total + entry.xp, 0);
+    setXp(currentXp);
+  };
+
+
+  const handleClaim = (reward) => {
+    toast((t) => (
+      <div className="space-y-2">
+        <p>Claim <strong>{reward.title}</strong> for {reward.cost} XP?</p>
+        <div className="flex gap-2">
+          <button
+            className="bg-green-500 text-white px-3 py-1 rounded text-sm"
+            onClick={() => {
+              const key = `xp_log_${kid.name}`;
+              const log = JSON.parse(localStorage.getItem(key) || "[]");
+              const entry = {
+                id: Date.now(),
+                kid: kid.name,
+                type: "reward_claimed",
+                xp: -reward.cost,
+                description: `Claimed: ${reward.title}`,
+                date: new Date().toISOString(),
+              };
+              localStorage.setItem(key, JSON.stringify([...log, entry]));
+              toast.dismiss(t.id);
+              toast.success(`🎁 ${reward.title} claimed! -${reward.cost} XP`, {
+                duration: 4000,
+                position: "bottom-center"
+              });
+              refreshXp();
+            }}
+          >
+            Confirm
+          </button>
+          <button
+            className="bg-red-500 text-white px-3 py-1 rounded text-sm"
+            onClick={() => toast.dismiss(t.id)}
+          >
+            Undo
+          </button>
+        </div>
+      </div>
+    ), {
+      duration: 10000,
+      position: "bottom-center",
+    });
+  };
+  const [view, setView] = useState("chores");
+  const [lastSwitch, setLastSwitch] = useState(Date.now());
+
+
+  const handleToggle = () => {
+    setView((prev) => (prev === "rewards" ? "chores" : "rewards"));
+    setLastSwitch(Date.now());
+  };
+
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (view === "rewards" && Date.now() - lastSwitch > 60000) {
+        setView("chores");
+      }
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [view, lastSwitch]);
+
+
+  return (
+    <div className="flex-1 border rounded-lg p-3 bg-white shadow-md">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-2xl">{kid.avatar}</span>
+        <span className="text-lg font-semibold">{kid.name}</span>
+        <button
+          onClick={handleToggle}
+          className="bg-purple-600 text-white px-3 py-1 rounded text-sm"
+        >
+          XP: {xp}
+        </button>
+      </div>
+      {view === "rewards" ? (
+        <KidRewardList kid={kid} rewards={rewards} xp={xp} onClaim={handleClaim} />
+      ) : (
+        <KidChoreList
+          chores={chores}
+          onSubmitChore={onSubmitChore}
+        />
+      )}
+    </div>
+  );
+}
+
+
+
+
+kidview----------------
+
+
+import React, { useEffect, useState } from "react";
+import KidChoreList from "./KidChoreList";
+
+
+const mockKids = [
+  { name: "Luna", avatar: "🦊" },
+  { name: "Milo", avatar: "🐻" },
+];
+
+
+const getChores = (kid) => {
+  const all = JSON.parse(localStorage.getItem("chores") || "[]");
+  return all.filter((c) => c.assignedTo?.includes(kid) && !c._deleted && !c.completed);
+};
+
+
+const getRewards = () => {
+  return JSON.parse(localStorage.getItem("rewards") || "[]");
+};
+
+
+export default function KidView() {
+  const [viewState, setViewState] = useState({});
+  const [lastInteraction, setLastInteraction] = useState({});
+
+
+  const handleToggle = (kid) => {
+    setViewState((prev) => ({ ...prev, [kid]: prev[kid] === "rewards" ? "chores" : "rewards" }));
+    setLastInteraction((prev) => ({ ...prev, [kid]: Date.now() }));
+  };
+
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setViewState((prevState) => {
+        const updated = { ...prevState };
+        for (const kid of mockKids.map((k) => k.name)) {
+          if (updated[kid] === "rewards" && Date.now() - (lastInteraction[kid] || 0) > 60000) {
+            updated[kid] = "chores";
+          }
+        }
+        return updated;
+      });
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [lastInteraction]);
+
+
+  const getXp = (kid) => {
+    const key = `xp_log_${kid}`;
+    const log = JSON.parse(localStorage.getItem(key) || "[]");
+    return log.reduce((total, entry) => total + entry.xp, 0);
+  }; // mock XP for now
+
+
+  return (
+    <div className="flex flex-col md:flex-row justify-center gap-4 p-4">
+      {mockKids.map((kid) => (
+        <div key={kid.name} className="flex-1 border rounded-lg p-3 bg-white shadow-md">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-2xl">{kid.avatar}</span>
+            <span className="text-lg font-semibold">{kid.name}</span>
+            <button
+              onClick={() => handleToggle(kid.name)}
+              className="bg-purple-600 text-white px-3 py-1 rounded text-sm"
+            >
+              XP: {getXp(kid.name)}
+            </button>
+          </div>
+          {viewState[kid.name] === "rewards" ? (
+            <div>
+              <h2 className="font-semibold text-lg mb-2">Rewards</h2>
+              <ul className="space-y-2">
+                {getRewards().map((r) => (
+                  <li
+                    key={r.id}
+                    className={`p-2 border rounded ${
+                      getXp(kid.name) < r.cost ? "opacity-50" : "bg-yellow-50"
+                    }`}
+                  >
+                    <strong>{r.title}</strong> – {r.cost} XP
+                    {getXp(kid.name) >= r.cost && (
+                      <button
+                        className="ml-2 bg-green-500 text-white px-2 py-1 rounded text-xs"
+                        onClick={() => {
+                          toast((t) => (
+                            <div className="space-y-2">
+                              <p>Claim <strong>{r.title}</strong> for {r.cost} XP?</p>
+                              <div className="flex gap-2">
+                                <button
+                                  className="bg-green-500 text-white px-3 py-1 rounded text-sm"
+                                  onClick={() => {
+                                    const key = `xp_log_${kid.name}`;
+                                    const log = JSON.parse(localStorage.getItem(key) || "[]");
+                                    const entry = {
+                                      id: Date.now(),
+                                      kid: kid.name,
+                                      type: "reward_claimed",
+                                      xp: -r.cost,
+                                      description: `Claimed: ${r.title}`,
+                                      date: new Date().toISOString(),
+                                    };
+                                    localStorage.setItem(key, JSON.stringify([...log, entry]));
+                                    toast.dismiss(t.id);
+                                    toast.success(`🎁 ${r.title} claimed! -${r.cost} XP`, {
+                                      duration: 4000,
+                                      position: "bottom-center"
+                                    });
+                                  }}
+                                >
+                                  Confirm
+                                </button>
+                                <button
+                                  className="bg-red-500 text-white px-3 py-1 rounded text-sm"
+                                  onClick={() => toast.dismiss(t.id)}
+                                >
+                                  Undo
+                                </button>
+                              </div>
+                            </div>
+                          ), {
+                            duration: 10000,
+                            position: "bottom-center"
+                          });
+                        }
+                      >
+                        Claim
+                      </button>
+                    )
+                  </li>
+                ))}
+              </ul>
+              <button
+                onClick={() => handleToggle(kid.name)}
+                className="mt-4 bg-gray-300 px-3 py-1 rounded"
+              >
+                Back to Chores
+              </button>
+            </div>
+          ) : (
+            <KidChoreList
+              chores={getChores(kid.name)}
+              onSubmitChore={(chore) => {
+              const key = `xp_log_${chore.kid}`;
+              const log = JSON.parse(localStorage.getItem(key) || "[]");
+              const xp = chore.xp || 10;
+              const entry = {
+                id: Date.now(),
+                kid: chore.kid,
+                type: "chore_completed",
+                xp,
+                description: `Completed: ${chore.title}`,
+                date: new Date().toISOString(),
+              };
+              localStorage.setItem(key, JSON.stringify([...log, entry]));
+              const allChores = JSON.parse(localStorage.getItem("chores") || "[]");
+              const updated = allChores.map((c) =>
+                c.id === chore.id ? { ...c, completed: true } : c
+              );
+              localStorage.setItem("chores", JSON.stringify(updated));
+              toast.success(`✅ ${chore.title} completed! +${xp} XP`, {
+                duration: 4000,
+                position: "bottom-center"
+              });
+            }}
+            />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
+
+
+kidchorelist-----------------------
+
+
+import React, { useState } from "react";
+import toast from "react-hot-toast";
+
+
+export default function KidChoreList({ chores, onSubmitChore }) {
+  const [pendingChoreId, setPendingChoreId] = useState(null);
+  const [visibleChores, setVisibleChores] = useState(chores);
+
+
+  const refresh = () => {
+    const updated = JSON.parse(localStorage.getItem("chores") || "[]");
+    const filtered = updated.filter((c) => chores.some((orig) => orig.id === c.id && !c.completed));
+    setVisibleChores(filtered);
+  };
+  const [refreshToggle, setRefreshToggle] = useState(false);
+  const refresh = () => setRefreshToggle((prev) => !prev);
+  const getIconForChore = (title) => {
+    const lower = title.toLowerCase();
+    if (lower.includes("brush") || lower.includes("teeth")) return "🪥";
+    if (lower.includes("trash")) return "🗑️";
+    if (lower.includes("bed")) return "🛏️";
+    if (lower.includes("book") || lower.includes("read")) return "📚";
+    if (lower.includes("table") || lower.includes("dishes")) return "🍽️";
+    return "🧹";
+  };
+  const [pendingChoreId, setPendingChoreId] = useState(null);
+
+
+  const handleMarkDone = (chore) => {
+    if (pendingChoreId === chore.id) return; // prevent multiple toasts for same chore
+    setPendingChoreId(chore.id);
+
+
+    if (chore.status === "approved") {
+      // Show final XP toast and remove from list
+      const key = `xp_log_${chore.kid}`;
+      const log = JSON.parse(localStorage.getItem(key) || "[]");
+      const totalXp = log.reduce((acc, entry) => acc + entry.xp, 0);
+
+
+      toast.success(
+        `🎉 Good job! You earned ${chore.xp || 10} XP. Your total is now ${totalXp} XP.`,
+        { duration: 6000, position: "bottom-center" }
+      );
+
+
+      const updated = JSON.parse(localStorage.getItem("chores") || "[]").map((c) =>
+        c.id === chore.id ? { ...c, completed: true } : c
+      );
+      localStorage.setItem("chores", JSON.stringify(updated));
+      setTimeout(refresh, 200);
+      setPendingChoreId(null);
+      return;
+    }
+
+
+    if (chore.status === "denied_remove") {
+      // Remove chore silently
+      const updated = JSON.parse(localStorage.getItem("chores") || "[]").map((c) =>
+        c.id === chore.id ? { ...c, completed: true } : c
+      );
+      localStorage.setItem("chores", JSON.stringify(updated));
+      setTimeout(refresh, 200);
+      setPendingChoreId(null);
+      return;
+    }
+
+
+    if (chore.status === "denied_reset") {
+      const updated = JSON.parse(localStorage.getItem("chores") || "[]").map((c) =>
+        c.id === chore.id ? { ...c, status: "new" } : c
+      );
+      localStorage.setItem("chores", JSON.stringify(updated));
+      setTimeout(refresh, 200);
+      setPendingChoreId(null);
+      return;
+    }
+    }
+
+
+    // For submitted or new chores, confirm submission
+    toast((t) => (
+      <div className="space-y-2">
+        <p>
+          Submit <strong>{chore.title}</strong>?
+        </p>
+        <div className="flex gap-2">
+          <button
+            className="bg-green-500 text-white px-3 py-1 rounded"
+            onClick={() => {
+              onSubmitChore({ ...chore, status: "submitted" });
+              refresh();
+              toast.dismiss(t.id);
+              setPendingChoreId(null);
+            }}
+          >
+            Confirm
+          </button>
+          <button
+            className="bg-red-500 text-white px-3 py-1 rounded"
+            onClick={() => {
+              toast.dismiss(t.id);
+              setPendingChoreId(null);
+            }}
+          >
+            Undo
+          </button>
+        </div>
+      </div>
+    ), {
+      duration: 10000,
+      position: "bottom-center",
+      style: { maxWidth: "90vw" },
+    });
+  };
+
+
+  return (
+    <div className="p-4 space-y-4">
+      {visibleChores.map((chore) => (
+        <div
+          key={chore.id}
+          className={`border p-3 rounded-lg shadow-md ${
+            chore.status === "approved"
+              ? "bg-green-100 border-green-500"
+              : chore.status === "submitted"
+              ? "bg-gray-100 border-gray-400 opacity-75"
+              : chore.status === "denied_remove" || chore.status === "denied_reset"
+              ? "bg-red-100 border-red-500"
+              : chore.inGracePeriod
+              ? "border-red-500 bg-red-50"
+              : "bg-white"
+          }`}
+        >
+          <div className="text-lg font-semibold mb-2 flex items-center gap-2">
+            <span>{getIconForChore(chore.title)}</span>
+            {chore.status === "approved" && <span className="text-green-600 font-bold text-sm">✅ Approved</span>}
+            {chore.status?.startsWith("denied") && <span className="text-red-600 font-bold text-sm">❌ Denied</span>}
+            {chore.status === "submitted" && <span className="text-gray-600 italic text-sm">⏳ Pending Approval</span>}
+            {chore.status === "approved" && <span className="text-green-600 font-bold text-sm">✅ Approved</span>}
+            <span>{chore.title}</span>
+          </div>
+          <button
+            className="bg-blue-600 text-white px-4 py-2 rounded w-full text-lg"
+            onClick={() => handleMarkDone(chore)}
+            disabled={pendingChoreId === chore.id}
+          >
+            Mark as Done
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
+
+
+
+
+kidapp--------------------
+
+
+import React from "react";
+import { Toaster } from "react-hot-toast";
+import KidDashboard from "./KidDashboard";
+
+
+export default function KidApp() {
+  return (
+    <>
+      <Toaster position="bottom-center" />
+      <KidDashboard />
+    </>
+  );
+}
+
+
+
+
+parentapp----------------------
+
+
+import React from "react";
+import { Toaster } from "react-hot-toast";
+import ParentDashboard from "./ParentDashboard";
+
+
+export default function ParentApp() {
+  return (
+    <>
+      <Toaster position="top-right" />
+      <ParentDashboard />
+    </>
+  );
+}
+
+
+
+
+usersettings-------------------
+
+
+import React, { useEffect, useState } from "react";
+
+
+export default function UserSettings() {
+  const [parents, setParents] = useState([]);
+  const [kids, setKids] = useState([]);
+  const [newParent, setNewParent] = useState("");
+  const [newKid, setNewKid] = useState("");
+
+
+  useEffect(() => {
+    const storedParents = JSON.parse(localStorage.getItem("parents") || "[]");
+    const storedKids = JSON.parse(localStorage.getItem("kids") || "[]");
+    setParents(storedParents);
+    setKids(storedKids);
+  }, []);
+
+
+  const saveData = (key, value) => {
+    localStorage.setItem(key, JSON.stringify(value));
+  };
+
+
+  const addParent = () => {
+    const updated = [...parents, newParent];
+    setParents(updated);
+    saveData("parents", updated);
+    setNewParent("");
+  };
+
+
+  const addKid = () => {
+    const updated = [...kids, newKid];
+    setKids(updated);
+    saveData("kids", updated);
+    setNewKid("");
+  };
+
+
+  const deleteItem = (list, setList, key, item) => {
+    const updated = list.filter(i => i !== item);
+    setList(updated);
+    saveData(key, updated);
+  };
+
+
+  return (
+    <div className="p-4 space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold">Parents</h2>
+        <div className="flex gap-2 items-center mb-2">
+          <input
+            className="border p-1 rounded"
+            value={newParent}
+            onChange={(e) => setNewParent(e.target.value)}
+            placeholder="Add parent name"
+          />
+          <button className="bg-blue-500 text-white px-2 py-1 rounded" onClick={addParent}>Add</button>
+        </div>
+        <ul className="text-sm space-y-1">
+          {parents.map((p) => (
+            <li key={p} className="flex justify-between items-center">
+              {p}
+              <button className="text-red-500 text-xs" onClick={() => deleteItem(parents, setParents, "parents", p)}>
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div>
+        <h2 className="text-lg font-semibold">Kids</h2>
+        <div className="flex gap-2 items-center mb-2">
+          <input
+            className="border p-1 rounded"
+            value={newKid}
+            onChange={(e) => setNewKid(e.target.value)}
+            placeholder="Add kid name"
+          />
+          <button className="bg-green-500 text-white px-2 py-1 rounded" onClick={addKid}>Add</button>
+        </div>
+        <ul className="text-sm space-y-1">
+          {kids.map((k) => (
+            <li key={k} className="flex justify-between items-center">
+              {k}
+              <button className="text-red-500 text-xs" onClick={() => deleteItem(kids, setKids, "kids", k)}>
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+
+
+
+
+
+rewardtab--------------------
+
+
+import React from "react";
+
+
+export default function RewardTab({ rewards, setRewards, newReward, setNewReward, handleAddReward, handleClaimReward, kids, activeParent })) {
+  return (
+    <div className="p-4 space-y-4">
+      <h2 className="text-xl font-bold">Manage Rewards</h2>
+      <form
+        className="flex gap-2 flex-wrap items-center"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const rewardWithCreator = {
+            ...newReward,
+            createdBy: activeParent || "parent",
+            createdAt: new Date().toISOString(),
+          };
+          handleAddReward(rewardWithCreator);
+        }}
+      >
+        <input
+          className="border p-1 rounded"
+          placeholder="Reward title"
+          value={newReward.title}
+          onChange={(e) => setNewReward({ ...newReward, title: e.target.value })}
+        />
+        <input
+          type="number"
+          className="border p-1 rounded w-24"
+          placeholder="XP cost"
+          value={newReward.cost}
+          onChange={(e) => setNewReward({ ...newReward, cost: parseInt(e.target.value) })}
+        />
+        <select
+          multiple
+          className="border p-1 rounded"
+          value={newReward.assignedTo}
+          onChange={(e) =>
+            setNewReward({
+              ...newReward,
+              assignedTo: Array.from(e.target.selectedOptions, (opt) => opt.value),
+            })
+          }
+        >
+          {kids.map((kid) => (
+            <option key={kid} value={kid}>{kid}</option>
+          ))}
+        </select>
+        <button
+          type="submit"
+          className="bg-green-500 text-white px-3 py-1 rounded"
+        >
+          Add Reward
+        </button>
+      </form>
+      {rewards.map((reward) => (
+        <div
+          key={reward.id}
+          className="flex justify-between items-center border p-2 rounded"
+        >
+          <div title={`Created by: ${reward.createdBy || "unknown"}\nCreated at: ${new Date(reward.createdAt).toLocaleString()}`}> 
+            <p className="font-semibold">{reward.title}</p>
+            <p className="text-xs text-gray-500">Cost: {reward.cost} XP</p>
+            <p className="text-xs text-gray-400">For: {reward.assignedTo.join(", ")}</p>
+          </div>
+          <div className="space-x-2">
+            {reward.assignedTo.map((kid) => (
+              <button
+                key={kid}
+                className="text-sm text-blue-600 border px-2 py-1 rounded"
+                onClick={() => handleClaimReward(kid, reward)}
+              >
+                Claim for {kid}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
+
+
+parentdashboard------------------
+
+
+import React, { useEffect, useState } from "react";
+import RewardTab from "./RewardTab";
+import XpLogTab from "./XpLogTab";
+import ChoreTab from "./ChoreTab";
+import ApprovalQueue from "./ApprovalQueue";
+import PenaltyReviewQueue from "./PenaltyReviewQueue";
+
+
+const mockFetchAllChores = async () => {
+  return [
+    { id: "1", title: "Brush Teeth", status: "submitted", penalty_status: null, kid: "Luna", sort_order: 1 },
+    { id: "2", title: "Take Out Trash", status: "approved", penalty_status: "pending", kid: "Luna", sort_order: 2 },
+    { id: "3", title: "Make Bed", status: "pending", penalty_status: null, kid: "Milo", sort_order: 1 },
+  ];
+};
+
+
+const mockSaveChoreOrder = async (updatedChores) => {
+  console.log("Saving chore order:", updatedChores);
+};
+
+
+const mockSaveRewards = async (updatedRewards) => {
+  localStorage.setItem("rewards", JSON.stringify(updatedRewards));
+};
+
+
+const mockLoadRewards = async () => {
+  const stored = localStorage.getItem("rewards");
+  return stored ? JSON.parse(stored) : [];
+};
+
+
+const logXpEvent = async ({ kid, type, xp, description }) => {
+  const key = `xp_log_${kid}`;
+  const log = JSON.parse(localStorage.getItem(key) || "[]");
+  const entry = {
+    id: Date.now(),
+    kid,
+    type,
+    xp,
+    description,
+    date: new Date().toISOString(),
+  };
+  log.push(entry);
+  localStorage.setItem(key, JSON.stringify(log));
+};
+
+
+const kids = ["Luna", "Milo"];
+
+
+const getXpBalance = (kid) => {
+  const key = `xp_log_${kid}`;
+  const log = JSON.parse(localStorage.getItem(key) || "[]");
+  return log.reduce((total, entry) => total + entry.xp, 0);
+};
+
+
+const TABS = ["Chores", "Approval", "Penalties", "Rewards", "XP Log"];
+
+
+export default function ParentDashboard() {
+  const [rewards, setRewards] = useState([]);
+  const [newReward, setNewReward] = useState({ title: "", cost: 0, assignedTo: kids });
+  const [activeTab, setActiveTab] = useState("Chores");
+  const [chores, setChores] = useState([]);
+  const [selectedKid, setSelectedKid] = useState("Luna");
+  const [pendingApprovals, setPendingApprovals] = useState(0);
+  const [pendingPenalties, setPendingPenalties] = useState(0);
+
+
+  useEffect(() => {
+    fetchChores();
+    loadRewards();
+  }, []);
+
+
+  const fetchChores = async () => {
+    const data = await mockFetchAllChores();
+    setChores(data);
+    setPendingApprovals(data.filter((c) => c.status === "submitted").length);
+    setPendingPenalties(data.filter((c) => c.penalty_status === "pending").length);
+  };
+
+
+  const loadRewards = async () => {
+    const data = await mockLoadRewards();
+    setRewards(data);
+  };
+
+
+  const handleAddReward = async () => {
+    if (newReward.title && newReward.cost > 0) {
+      const newItem = {
+        id: Date.now().toString(),
+        ...newReward,
+        createdBy: "parent",
+        createdAt: new Date().toISOString(),
+      };
+      const updated = [...rewards, newItem];
+      setRewards(updated);
+      setNewReward({ title: "", cost: 0, assignedTo: kids });
+      await mockSaveRewards(updated);
+    }
+  };
+
+
+  const handleClaimReward = async (kid, reward) => {
+    await logXpEvent({
+      kid,
+      type: "reward",
+      xp: -reward.cost,
+      description: `Claimed: ${reward.title}`
+    });
+    alert(`${kid} claimed "${reward.title}" for ${reward.cost} XP!`);
+  };
+
+
+  const moveChore = async (index, direction) => {
+    const updated = [...chores];
+    const kidChores = updated
+      .filter((c) => c.kid === selectedKid)
+      .sort((a, b) => a.sort_order - b.sort_order);
+
+
+    const targetIdx = index + direction;
+    if (targetIdx < 0 || targetIdx >= kidChores.length) return;
+
+
+    const temp = kidChores[index].sort_order;
+    kidChores[index].sort_order = kidChores[targetIdx].sort_order;
+    kidChores[targetIdx].sort_order = temp;
+
+
+    const updatedChores = updated.map((c) => {
+      const moved = kidChores.find((kc) => kc.id === c.id);
+      return moved ? { ...c, sort_order: moved.sort_order } : c;
+    });
+
+
+    setChores(updatedChores);
+    await mockSaveChoreOrder(updatedChores);
+  };
+
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case "Chores":
+        return (
+          <ChoreTab
+            chores={chores}
+            selectedKid={selectedKid}
+            setSelectedKid={setSelectedKid}
+            moveChore={moveChore}
+            getXpBalance={getXpBalance}
+            kids={kids}
+          />
+        );
+      case "Approval":
+        return <ApprovalQueue />;
+      case "Penalties":
+        return <PenaltyReviewQueue />;
+      case "Rewards":
+        return (
+          <RewardTab
+            rewards={rewards}
+            setRewards={setRewards}
+            newReward={newReward}
+            setNewReward={setNewReward}
+            handleAddReward={handleAddReward}
+            handleClaimReward={handleClaimReward}
+            kids={kids}
+          />
+        );
+      case "XP Log":
+        return (
+          <XpLogTab selectedKid={selectedKid} />
+        );
+      default:
+        return null;
+    }
+  };
+
+
+  return (
+    <div className="max-w-3xl mx-auto p-4">
+      <h1 className="text-3xl font-bold mb-4">Parent Dashboard</h1>
+      <div className="flex space-x-4 border-b pb-2 mb-4">
+        {TABS.map((tab) => {
+          let indicator = null;
+          if (tab === "Approval" && pendingApprovals > 0) {
+            indicator = (
+              <span className="ml-2 bg-blue-500 text-white text-xs rounded-full px-2">
+                {pendingApprovals}
+              </span>
+            );
+          }
+          if (tab === "Penalties" && pendingPenalties > 0) {
+            indicator = (
+              <span className="ml-2 bg-red-500 text-white text-xs rounded-full px-2">
+                {pendingPenalties}
+              </span>
+            );
+          }
+          return (
+            <button
+              key={tab}
+              className={`text-sm font-medium ${
+                activeTab === tab ? "text-blue-600" : "text-gray-600"
+              }`}
+              onClick={() => setActiveTab(tab)}
+            >
+              {tab}
+              {indicator}
+            </button>
+          );
+        })}
+      </div>
+      {renderTabContent()}
+    </div>
+  );
+}
+
+
+
+
+penaltyreviewqueue--------------
+
+
+import React, { useEffect, useState } from "react";
+import toast from "react-hot-toast";
+
+
+const mockFetchPendingPenalties = async () => {
+  return [
+    { id: "3", title: "Do Homework", kid: "Luna", penaltyAmount: 15 },
+    { id: "4", title: "Feed Hamster", kid: "Milo", penaltyAmount: 10 },
+  ];
+};
+
+
+export default function PenaltyReviewQueue() {
+  const [penalties, setPenalties] = useState([]);
+  const [confirmation, setConfirmation] = useState(null);
+  const [note, setNote] = useState("");
+
+
+  useEffect(() => {
+    fetchPenalties();
+  }, []);
+
+
+  const fetchPenalties = async () => {
+    const data = await mockFetchPendingPenalties();
+    setPenalties(data);
+  };
+
+
+  const confirmResolution = (chore, action) => {
+    toast((t) => (
+      <div className="space-y-2">
+        <p>
+          {action === "approve"
+            ? `Approve penalty of ${chore.penaltyAmount} XP for "${chore.title}"?`
+            : `Waive penalty for "${chore.title}"?`}
+        </p>
+        <div className="flex gap-2">
+          <button
+            className="bg-blue-600 text-white px-3 py-1 rounded text-sm"
+            onClick={() => {
+              const updated = penalties.filter((p) => p.id !== chore.id);
+              setPenalties(updated);
+              toast.dismiss(t.id);
+              toast.success(`${action === "approve" ? "Penalty applied" : "Penalty waived"}`, {
+                duration: 4000,
+                position: "bottom-center",
+              });
+
+
+              if (action === "approve") {
+                const key = `xp_log_${chore.kid}`;
+                const log = JSON.parse(localStorage.getItem(key) || "[]");
+                log.push({
+                  id: Date.now(),
+                  kid: chore.kid,
+                  type: "penalty_approved",
+                  xp: -chore.penaltyAmount,
+                  description: `Penalty approved for: ${chore.title}`,
+                  note,
+                  date: new Date().toISOString(),
+                });
+                localStorage.setItem(key, JSON.stringify(log));
+              } else {
+                const key = `xp_log_${chore.kid}`;
+                const log = JSON.parse(localStorage.getItem(key) || "[]");
+                log.push({
+                  id: Date.now(),
+                  kid: chore.kid,
+                  type: "penalty_waived",
+                  xp: 0,
+                  description: `Penalty waived for: ${chore.title}`,
+                  note,
+                  date: new Date().toISOString(),
+                });
+                localStorage.setItem(key, JSON.stringify(log));
+              }
+            }}
+          >
+            Confirm
+          </button>
+          <button
+            className="bg-gray-400 text-white px-3 py-1 rounded text-sm"
+            onClick={() => toast.dismiss(t.id)}
+          >
+            Undo
+          </button>
+        </div>
+      </div>
+    ), {
+      duration: 5000,
+      position: "bottom-center",
+    });
+  };
+
+
+  
+
+
+  return (
+    <div className="space-y-4 p-4">
+      <h2 className="text-xl font-bold">Penalties Awaiting Review</h2>
+      {penalties.length === 0 ? (
+        <p className="text-gray-500">No penalties pending.</p>
+      ) : (
+        penalties.map((chore) => (
+          <div
+            key={chore.id}
+            className="border rounded-xl p-4 shadow flex justify-between items-center"
+          >
+            <div>
+              <p className="font-semibold">{chore.title}</p>
+              <p className="text-sm text-gray-500">By {chore.kid} — Penalty: {chore.penaltyAmount} XP</p>
+            </div>
+            <div className="space-x-2">
+              <button
+                className="bg-green-500 text-white px-3 py-1 rounded"
+                onClick={() => confirmResolution(chore, "waive")}
+              >
+                Waive
+              </button>
+              <button
+                className="bg-red-500 text-white px-3 py-1 rounded"
+                onClick={() => confirmResolution(chore, "approve")}
+              >
+                Approve Penalty
+              </button>
+            </div>
+          </div>
+        ))
+      )}
+
+
+      
+          />
+          <div className="flex justify-end gap-2">
+            <button
+              className="px-4 py-1 bg-gray-300 rounded"
+              onClick={() => setConfirmation(null)}
+            >
+              Cancel
+            </button>
+            <button
+              className="px-4 py-1 bg-blue-600 text-white rounded"
+              onClick={handleConfirm}
+            >
+              Confirm
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+
+
+approvalqueue---------------
+
+
+import React, { useEffect, useState } from "react";
+import toast from "react-hot-toast";
+
+
+const mockFetchSubmittedChores = async () => {
+  const chores = JSON.parse(localStorage.getItem("chores") || "[]");
+  return chores.filter((c) => c.status === "submitted");
+};
+
+
+export default function ApprovalQueue() {
+  const [submitted, setSubmitted] = useState([]);
+
+
+  useEffect(() => {
+    fetchChores();
+  }, []);
+
+
+  const fetchChores = async () => {
+    const data = await mockFetchSubmittedChores();
+    setSubmitted(data);
+  };
+
+
+  const handleApproval = (choreId, action) => {
+    const approved = action === true;
+    const deniedReset = action === "reset";
+    const deniedRemove = action === "remove";
+    const action = approved ? "Approve" : deniedReset ? "Deny & Reset" : "Deny & Remove";
+    const chores = JSON.parse(localStorage.getItem("chores") || "[]");
+    const target = chores.find((c) => c.id === choreId);
+
+
+    toast((t) => (
+      <div className="space-y-2">
+        <p>{action} chore <strong>{target.title}</strong>?</p>
+        <div className="flex gap-2">
+          <button
+            className="bg-green-500 text-white px-3 py-1 rounded text-sm"
+            onClick={() => {
+              const updatedChores = chores.map((chore) =>
+                chore.id === choreId ? { ...chore, status: approved ? "approved" : deniedReset ? "denied_reset" : "denied_remove" } : chore
+              );
+              localStorage.setItem("chores", JSON.stringify(updatedChores));
+
+
+              if (approved) {
+                const xp = target?.xp || 10;
+                const key = `xp_log_${target.kid}`;
+                const log = JSON.parse(localStorage.getItem(key) || "[]");
+                log.push({
+                  id: Date.now(),
+                  kid: target.kid,
+                  type: "chore_approved",
+                  xp,
+                  description: `Approved chore: ${target.title}`,
+                  date: new Date().toISOString(),
+                });
+                localStorage.setItem(key, JSON.stringify(log));
+              }
+
+
+              fetchChores();
+              toast.dismiss(t.id);
+              toast.success(`${action}d '${target.title}'`, {
+                duration: 4000,
+                position: "bottom-center",
+              });
+            }}
+          >
+            Confirm
+          </button>
+          <button
+            className="bg-red-500 text-white px-3 py-1 rounded text-sm"
+            onClick={() => toast.dismiss(t.id)}
+          >
+            Undo
+          </button>
+        </div>
+      </div>
+    ), {
+      duration: 5000,
+      position: "bottom-center",
+    });
+  };
+      }
+      return chore;
+    });
+    localStorage.setItem("chores", JSON.stringify(updatedChores));
+
+
+    if (approved) {
+      const approvedChore = chores.find((c) => c.id === choreId);
+      const xp = approvedChore?.xp || 10;
+      const key = `xp_log_${approvedChore.kid}`;
+      const log = JSON.parse(localStorage.getItem(key) || "[]");
+      log.push({
+        id: Date.now(),
+        kid: approvedChore.kid,
+        type: "chore_approved",
+        xp,
+        description: `Approved chore: ${approvedChore.title}`,
+        date: new Date().toISOString(),
+      });
+      localStorage.setItem(key, JSON.stringify(log));
+    }
+  };
+
+
+  return (
+    <div className="space-y-4 p-4">
+      <h2 className="text-xl font-bold">Chores Awaiting Approval</h2>
+      {submitted.length === 0 ? (
+        <p className="text-gray-500">No chores pending approval.</p>
+      ) : (
+        submitted.map((chore) => (
+          <div
+            key={chore.id}
+            className="border rounded-xl p-4 shadow flex justify-between items-center"
+          >
+            <div>
+              <p className="font-semibold">{chore.title}</p>
+              <p className="text-sm text-gray-500">By {chore.kid} — {chore.xp} XP</p>
+            </div>
+            <div className="space-x-2">
+              <button
+                className="bg-green-500 text-white px-3 py-1 rounded"
+                onClick={() => handleApproval(chore.id, true)}
+              >
+                Approve
+              </button>
+              <button
+                className="bg-yellow-500 text-white px-3 py-1 rounded"
+                onClick={() => handleApproval(chore.id, "reset")}
+              >
+                Deny & Reset
+              </button>
+              <button
+                className="bg-red-500 text-white px-3 py-1 rounded"
+                onClick={() => handleApproval(chore.id, "remove")}
+              >
+                Deny
+              </button>
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+
+
+
+recurrencecalendarpreview-----------------
+
+
+import React, { useState } from "react";
+import RecurrenceCalendarPreview from "./RecurrenceCalendarPreview";
+
+
+export default function ParentChoreForm({ onSave }) {
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    assignedTo: [],
+    xp: 10,
+    priority: "Medium",
+    archived: false,
+    recurrenceType: "daily",
+    daysOfWeek: [],
+    dayOfMonth: "",
+    nthWeek: 1,
+    weekday: 1,
+    everyN: 1,
+    intervalUnit: "days",
+    basedOnCompletion: false,
+    enforceVisibility: false,
+    visibilityStart: "",
+    visibilityEnd: "",
+    penaltyEnabled: false,
+    penaltyAmount: 5,
+    penaltyGraceHours: 0.5,
+  });
+  const [showCalendar, setShowCalendar] = useState(false);
+
+
+  const handleChange = (key, value) => {
+    setForm({ ...form, [key]: value });
+  };
+
+
+  const handleCheckboxChange = (key) => {
+    setForm({ ...form, [key]: !form[key] });
+  };
+
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSave(form);
+  };
+
+
+  const recurrenceConfig = {
+    recurrenceType: form.recurrenceType,
+    daysOfWeek: form.daysOfWeek,
+    dayOfMonth: form.dayOfMonth,
+    nthWeek: form.nthWeek,
+    weekday: form.weekday,
+    everyN: form.everyN,
+    intervalUnit: form.intervalUnit
+  };
+
+
+  return (
+    <form className="space-y-4 p-4 max-w-xl mx-auto" onSubmit={handleSubmit}>
+      <h2 className="text-2xl font-bold">Create/Edit Chore</h2>
+
+
+      <div>
+        <label className="block font-semibold">Title</label>
+        <input
+          className="w-full border rounded p-2"
+          value={form.title}
+          onChange={(e) => handleChange("title", e.target.value)}
+          required
+        />
+      </div>
+
+
+      <div>
+        <label className="block font-semibold">XP Reward</label>
+        <input
+          type="number"
+          className="w-full border rounded p-2"
+          value={form.xp}
+          onChange={(e) => handleChange("xp", parseInt(e.target.value))}
+        />
+      </div>
+
+
+      <div>
+        <label className="block font-semibold">Recurrence Type</label>
+        <select
+          className="w-full border rounded p-2"
+          value={form.recurrenceType}
+          onChange={(e) => handleChange("recurrenceType", e.target.value)}
+        >
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+          <option value="interval">Every N...</option>
+        </select>
+      </div>
+
+
+      {form.recurrenceType === "weekly" && (
+        <div>
+          <label className="block font-semibold">Days of Week</label>
+          <div className="flex gap-2 flex-wrap">
+            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day, idx) => (
+              <label key={day} className="inline-flex items-center">
+                <input
+                  type="checkbox"
+                  checked={form.daysOfWeek.includes(idx)}
+                  onChange={() => {
+                    const updated = form.daysOfWeek.includes(idx)
+                      ? form.daysOfWeek.filter((d) => d !== idx)
+                      : [...form.daysOfWeek, idx];
+                    handleChange("daysOfWeek", updated);
+                  }}
+                />
+                <span className="ml-1">{day}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
+
+      {form.recurrenceType === "monthly" && (
+        <div className="space-y-2">
+          <label className="block font-semibold">Day of Month</label>
+          <input
+            type="number"
+            className="w-full border rounded p-2"
+            value={form.dayOfMonth}
+            onChange={(e) => handleChange("dayOfMonth", e.target.value)}
+          />
+
+
+          <label className="block font-semibold">Or Nth Weekday</label>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              value={form.nthWeek}
+              onChange={(e) => handleChange("nthWeek", parseInt(e.target.value))}
+              className="w-1/3 border rounded p-2"
+              placeholder="e.g. 2"
+            />
+            <select
+              value={form.weekday}
+              onChange={(e) => handleChange("weekday", parseInt(e.target.value))}
+              className="w-2/3 border rounded p-2"
+            >
+              {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d, i) => (
+                <option value={i} key={d}>{d}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
+
+      {form.recurrenceType === "interval" && (
+        <div className="flex gap-2">
+          <input
+            type="number"
+            className="w-1/2 border rounded p-2"
+            value={form.everyN}
+            onChange={(e) => handleChange("everyN", parseInt(e.target.value))}
+          />
+          <select
+            className="w-1/2 border rounded p-2"
+            value={form.intervalUnit}
+            onChange={(e) => handleChange("intervalUnit", e.target.value)}
+          >
+            <option value="days">Days</option>
+            <option value="weeks">Weeks</option>
+            <option value="months">Months</option>
+          </select>
+        </div>
+      )}
+
+
+      <label className="inline-flex items-center">
+        <input
+          type="checkbox"
+          checked={form.basedOnCompletion}
+          onChange={() => handleCheckboxChange("basedOnCompletion")}
+        />
+        <span className="ml-2">Based on completion</span>
+      </label>
+
+
+      <div className="text-right">
+        <button
+          type="button"
+          className="text-sm text-blue-500 underline"
+          onClick={() => setShowCalendar(!showCalendar)}
+        >
+          {showCalendar ? "Hide Calendar" : "Preview on Calendar"}
+        </button>
+      </div>
+
+
+      {showCalendar && <RecurrenceCalendarPreview recurrence={recurrenceConfig} />}
+
+
+      <hr />
+
+
+      <h3 className="font-semibold">Visibility Window</h3>
+      <label className="inline-flex items-center">
+        <input
+          type="checkbox"
+          checked={form.enforceVisibility}
+          onChange={() => handleCheckboxChange("enforceVisibility")}
+        />
+        <span className="ml-2">Enforce time window</span>
+      </label>
+      <div className="flex gap-2">
+        <input
+          type="time"
+          className="w-1/2 border rounded p-2"
+          value={form.visibilityStart}
+          onChange={(e) => handleChange("visibilityStart", e.target.value)}
+        />
+        <input
+          type="time"
+          className="w-1/2 border rounded p-2"
+          value={form.visibilityEnd}
+          onChange={(e) => handleChange("visibilityEnd", e.target.value)}
+        />
+      </div>
+
+
+      <hr />
+
+
+      <h3 className="font-semibold">Penalty</h3>
+      <label className="inline-flex items-center">
+        <input
+          type="checkbox"
+          checked={form.penaltyEnabled}
+          onChange={() => handleCheckboxChange("penaltyEnabled")}
+        />
+        <span className="ml-2">Enable penalty</span>
+      </label>
+
+
+      {form.penaltyEnabled && (
+        <div className="space-y-2">
+          <label className="block font-semibold">Grace Period (hours)</label>
+          <input
+            type="number"
+            step="0.5"
+            className="w-full border rounded p-2"
+            value={form.penaltyGraceHours}
+            onChange={(e) => handleChange("penaltyGraceHours", parseFloat(e.target.value))}
+          />
+          <label className="block font-semibold">Penalty Amount (XP)</label>
+          <input
+            type="number"
+            className="w-full border rounded p-2"
+            value={form.penaltyAmount}
+            onChange={(e) => handleChange("penaltyAmount", parseInt(e.target.value))}
+          />
+        </div>
+      )}
+
+
+      <button
+        type="submit"
+        className="w-full bg-blue-600 text-white py-2 rounded mt-4"
+      >
+        Save Chore
+      </button>
+    </form>
+  );
+}
+
+
+
+
+parentchoreform---------------------------
+
+
+import React, { useState } from "react";
+import toast from "react-hot-toast";
+
+
+
+
+export default function ParentChoreForm({ onSave, activeParent, onDelete }) {
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    assignedTo: [],
+    xp: 10,
+    priority: "Medium",
+    archived: false,
+    recurrenceType: "daily",
+    daysOfWeek: [],
+    dayOfMonth: "",
+    nthWeek: 1,
+    weekday: 1,
+    everyN: 1,
+    intervalUnit: "days",
+    basedOnCompletion: false,
+    enforceVisibility: false,
+    visibilityStart: "",
+    visibilityEnd: "",
+    penaltyEnabled: false,
+    penaltyAmount: 5,
+    penaltyGraceHours: 0.5,
+  });
+
+
+  const handleChange = (key, value) => {
+    setForm({ ...form, [key]: value });
+  };
+
+
+  const handleCheckboxChange = (key) => {
+    setForm({ ...form, [key]: !form[key] });
+  };
+
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const timestamp = new Date().toISOString();
+    const creator = activeParent || "parent";
+    const payload = { ...form, createdBy: creator, createdAt: timestamp };
+    onSave(payload);
+    logXpEvent({
+      kid: form.assignedTo[0],
+      type: "chore_created",
+      xp: 0,
+      description: `Chore '${form.title}' created by ${creator}`,
+    });
+    if (form.id) {
+      logXpEvent({
+        kid: form.assignedTo[0],
+        type: "chore_edited",
+        xp: 0,
+        description: `Chore '${form.title}' edited by ${creator}`,
+      });
+    }
+    if (form._deleted) {
+      logXpEvent({
+        kid: form.assignedTo[0],
+        type: "chore_deleted",
+        xp: 0,
+        description: `Chore '${form.title}' deleted by ${creator}`,
+      });
+    }
+  };
+    logXpEvent({
+      kid: form.assignedTo[0],
+      type: "chore_created",
+      xp: 0,
+      description: `Chore '${form.title}' created by ${activeParent || 'parent'}`,
+    });
+  };
+
+
+  return (
+    
+      <form className="space-y-4 p-4 max-w-xl mx-auto" onSubmit={handleSubmit}>
+      <h2 className="text-2xl font-bold">Create/Edit Chore</h2>
+
+
+      <div title={`Created by: ${activeParent || 'parent'}
+Created at: ${new Date().toLocaleString()}`}> 
+        <label className="block font-semibold">Title</label>
+        <input
+          className="w-full border rounded p-2"
+          value={form.title}
+          onChange={(e) => handleChange("title", e.target.value)}
+          required
+        />
+      </div>
+
+
+      <div>
+        <label className="block font-semibold">XP Reward</label>
+        <input
+          type="number"
+          className="w-full border rounded p-2"
+          value={form.xp}
+          onChange={(e) => handleChange("xp", parseInt(e.target.value))}
+        />
+      </div>
+
+
+      <div>
+        <label className="block font-semibold">Recurrence Type</label>
+        <select
+          className="w-full border rounded p-2"
+          value={form.recurrenceType}
+          onChange={(e) => handleChange("recurrenceType", e.target.value)}
+        >
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+          <option value="interval">Every N...</option>
+        </select>
+      </div>
+
+
+      {form.recurrenceType === "weekly" && (
+        <div>
+          <label className="block font-semibold">Days of Week</label>
+          <div className="flex gap-2 flex-wrap">
+            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day, idx) => (
+              <label key={day} className="inline-flex items-center">
+                <input
+                  type="checkbox"
+                  checked={form.daysOfWeek.includes(idx)}
+                  onChange={() => {
+                    const updated = form.daysOfWeek.includes(idx)
+                      ? form.daysOfWeek.filter((d) => d !== idx)
+                      : [...form.daysOfWeek, idx];
+                    handleChange("daysOfWeek", updated);
+                  }}
+                />
+                <span className="ml-1">{day}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
+
+      {form.recurrenceType === "monthly" && (
+        <div className="space-y-2">
+          <label className="block font-semibold">Day of Month</label>
+          <input
+            type="number"
+            className="w-full border rounded p-2"
+            value={form.dayOfMonth}
+            onChange={(e) => handleChange("dayOfMonth", e.target.value)}
+          />
+
+
+          <label className="block font-semibold">Or Nth Weekday</label>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              value={form.nthWeek}
+              onChange={(e) => handleChange("nthWeek", parseInt(e.target.value))}
+              className="w-1/3 border rounded p-2"
+              placeholder="e.g. 2"
+            />
+            <select
+              value={form.weekday}
+              onChange={(e) => handleChange("weekday", parseInt(e.target.value))}
+              className="w-2/3 border rounded p-2"
+            >
+              {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d, i) => (
+                <option value={i} key={d}>{d}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
+
+      {form.recurrenceType === "interval" && (
+        <div className="flex gap-2">
+          <input
+            type="number"
+            className="w-1/2 border rounded p-2"
+            value={form.everyN}
+            onChange={(e) => handleChange("everyN", parseInt(e.target.value))}
+          />
+          <select
+            className="w-1/2 border rounded p-2"
+            value={form.intervalUnit}
+            onChange={(e) => handleChange("intervalUnit", e.target.value)}
+          >
+            <option value="days">Days</option>
+            <option value="weeks">Weeks</option>
+            <option value="months">Months</option>
+          </select>
+        </div>
+      )}
+
+
+      <label className="inline-flex items-center">
+        <input
+          type="checkbox"
+          checked={form.basedOnCompletion}
+          onChange={() => handleCheckboxChange("basedOnCompletion")}
+        />
+        <span className="ml-2">Based on completion</span>
+      </label>
+
+
+      <hr />
+
+
+      <h3 className="font-semibold">Visibility Window</h3>
+      <label className="inline-flex items-center">
+        <input
+          type="checkbox"
+          checked={form.enforceVisibility}
+          onChange={() => handleCheckboxChange("enforceVisibility")}
+        />
+        <span className="ml-2">Enforce time window</span>
+      </label>
+      <div className="flex gap-2">
+        <input
+          type="time"
+          className="w-1/2 border rounded p-2"
+          value={form.visibilityStart}
+          onChange={(e) => handleChange("visibilityStart", e.target.value)}
+        />
+        <input
+          type="time"
+          className="w-1/2 border rounded p-2"
+          value={form.visibilityEnd}
+          onChange={(e) => handleChange("visibilityEnd", e.target.value)}
+        />
+      </div>
+
+
+      <hr />
+
+
+      <h3 className="font-semibold">Penalty</h3>
+      <label className="inline-flex items-center">
+        <input
+          type="checkbox"
+          checked={form.penaltyEnabled}
+          onChange={() => handleCheckboxChange("penaltyEnabled")}
+        />
+        <span className="ml-2">Enable penalty</span>
+      </label>
+
+
+      {form.penaltyEnabled && (
+        <div className="space-y-2">
+          <label className="block font-semibold">Grace Period (hours)</label>
+          <input
+            type="number"
+            step="0.5"
+            className="w-full border rounded p-2"
+            value={form.penaltyGraceHours}
+            onChange={(e) => handleChange("penaltyGraceHours", parseFloat(e.target.value))}
+          />
+          <label className="block font-semibold">Penalty Amount (XP)</label>
+          <input
+            type="number"
+            className="w-full border rounded p-2"
+            value={form.penaltyAmount}
+            onChange={(e) => handleChange("penaltyAmount", parseInt(e.target.value))}
+          />
+        </div>
+      )}
+
+
+      <button
+        type="submit"
+        className="w-full bg-blue-600 text-white py-2 rounded mt-4"
+      >
+        Save Chore
+      </button>
+      {form.id && (
+        <button
+          type="button"
+          onClick={() => {
+            if (!window.confirm(`Are you sure you want to delete the chore '${form.title}'?`)) return;
+            const deleted = { ...form, _deleted: true };
+            onSave(deleted);
+            toast((t) => (
+              <div className="space-y-2">
+                <p>Chore '{form.title}' deleted.</p>
+                <button
+                  className="text-sm text-blue-600 underline"
+                  onClick={() => {
+                    const restored = { ...form };
+                    delete restored._deleted;
+                    onSave(restored);
+                    toast.dismiss(t.id);
+                  }}
+                >
+                  Undo
+                </button>
+              </div>
+            ), { duration: 10000 });
+            logXpEvent({
+              kid: form.assignedTo[0],
+              type: "chore_deleted",
+              xp: 0,
+              description: `Chore '${form.title}' deleted by ${activeParent || 'parent'}`,
+            });
+          }}
+          className="w-full bg-red-600 text-white py-2 rounded"
+        >
+          Delete Chore
+        </button>
+      )}
+    </form>
+    </>
+  );
+}
+
+
+
+
+kidchorecolumn---------------------
+import React, { useEffect, useState } from "react";
+
+
+const mockFetchChoreData = async () => {
+  // Simulate fetch from JSON
+  return {
+    kid: {
+      id: "kid_1",
+      name: "Luna",
+      xp: 120,
+      avatar: "🦊"
+    },
+    chores: [
+      {
+        id: "1",
+        title: "Brush Teeth",
+        status: "pending",
+        xp: 20,
+        highlight: false,
+      },
+      {
+        id: "2",
+        title: "Make Bed",
+        status: "approved",
+        xp: 15,
+        feedbackShown: false,
+      }
+    ],
+    rewards: [
+      { id: "r1", title: "Stickers", cost: 100 },
+      { id: "r2", title: "New Toy", cost: 200 }
+    ],
+    claimedRewards: [
+      { id: "r1", title: "Stickers", claimedAt: "2025-04-01" }
+    ]
+  };
+};
+
+
+export default function KidChoreColumn() {
+  const [kid, setKid] = useState(null);
+  const [chores, setChores] = useState([]);
+  const [rewards, setRewards] = useState([]);
+  const [claimedRewards, setClaimedRewards] = useState([]);
+  const [confirmation, setConfirmation] = useState(null);
+  const [feedback, setFeedback] = useState(null);
+  const [view, setView] = useState("chores"); // chores or rewards
+
+
+  const fetchChores = async () => {
+    const data = await mockFetchChoreData();
+    setKid(data.kid);
+    setChores(data.chores);
+    setRewards(data.rewards);
+    setClaimedRewards(data.claimedRewards);
+
+
+    const approved = data.chores.find(
+      (chore) => chore.status === "approved" && !chore.feedbackShown
+    );
+    if (approved) {
+      setFeedback({ type: "approved", title: approved.title, id: approved.id });
+    }
+  };
+
+
+  useEffect(() => {
+    fetchChores();
+    const interval = setInterval(fetchChores, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+
+  const handleComplete = (chore) => {
+    setConfirmation(chore);
+  };
+
+
+  const confirmComplete = () => {
+    setConfirmation(null);
+    fetchChores();
+  };
+
+
+  const dismissFeedback = () => {
+    setFeedback(null);
+  };
+
+
+  if (!kid) return <div>Loading...</div>;
+
+
+  return (
+    <div className="p-4 space-y-4 max-w-md mx-auto">
+      <div className="flex items-center space-x-4">
+        <div className="text-4xl">{kid.avatar}</div>
+        <div>
+          <h2 className="text-2xl font-bold">{kid.name}</h2>
+          <p className="text-sm">XP: {kid.xp}</p>
+        </div>
+      </div>
+
+
+      <div className="flex justify-end">
+        <button
+          className="text-sm text-blue-500 underline"
+          onClick={() => setView(view === "chores" ? "rewards" : "chores")}
+        >
+          {view === "chores" ? "View Reward History" : "Back to Chores"}
+        </button>
+      </div>
+
+
+      {view === "chores" ? (
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold">Chores</h3>
+          {chores.map((chore) => (
+            <div
+              key={chore.id}
+              className={`border p-4 rounded-xl shadow ${
+                chore.highlight ? "border-yellow-500 bg-yellow-50" : "border-gray-300"
+              }`}
+            >
+              <div className="flex justify-between items-center">
+                <span>{chore.title}</span>
+                {chore.status === "pending" && (
+                  <button
+                    className="bg-blue-500 text-white px-2 py-1 rounded"
+                    onClick={() => handleComplete(chore)}
+                  >
+                    Mark as Done
+                  </button>
+                )}
+                {chore.status === "submitted" && (
+                  <span className="text-sm text-blue-600">Submitted</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold">Claimed Rewards</h3>
+          {claimedRewards.length > 0 ? (
+            claimedRewards.map((reward) => (
+              <div key={reward.id} className="border p-4 rounded-xl border-green-300">
+                <div className="flex justify-between">
+                  <span>{reward.title}</span>
+                  <span className="text-sm text-gray-500">{reward.claimedAt}</span>
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-gray-500">No rewards claimed yet.</p>
+          )}
+        </div>
+      )}
+
+
+      <div className="mt-6 space-y-2">
+        <h3 className="text-lg font-semibold">Rewards</h3>
+        {rewards.map((reward) => {
+          const progress = Math.min((kid.xp / reward.cost) * 100, 100);
+          return (
+            <div key={reward.id} className="mb-2">
+              <div className="flex justify-between">
+                <span>{reward.title}</span>
+                <span>{kid.xp} / {reward.cost} XP</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className="bg-green-500 h-2 rounded-full"
+                  style={{ width: `${progress}%` }}
+                ></div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+
+      {confirmation && (
+        <div className="fixed bottom-4 left-4 right-4 bg-white p-4 shadow-lg rounded-xl border border-blue-500">
+          <p>Mark '{confirmation.title}' as done?</p>
+          <div className="flex justify-end space-x-2 mt-2">
+            <button
+              className="px-4 py-1 bg-gray-300 rounded"
+              onClick={() => setConfirmation(null)}
+            >
+              Cancel
+            </button>
+            <button
+              className="px-4 py-1 bg-green-500 text-white rounded"
+              onClick={confirmComplete}
+            >
+              Yes, I did it
+            </button>
+          </div>
+        </div>
+      )}
+
+
+      {feedback && (
+        <div className="fixed top-4 left-4 right-4 bg-green-100 p-4 shadow rounded-xl border border-green-500">
+          <p>✅ '{feedback.title}' was approved!</p>
+          <div className="flex justify-end mt-2">
+            <button
+              className="px-4 py-1 bg-green-500 text-white rounded"
+              onClick={dismissFeedback}
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
