@@ -1,0 +1,12 @@
+# docker-compose.yml
+version: '3.8'
+services:
+  app:
+    build: .
+    ports:
+      - "8080:80"
+    volumes:
+      - ./data:/usr/share/nginx/html/data
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped

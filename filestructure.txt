@@ -1,0 +1,43 @@
+smart-chores-app/
+├── public/
+│   ├── index.html                  # Main HTML template
+│   ├── favicon.ico                 # App icon (can be default)
+│   └── robots.txt                  # SEO configuration **(NEW)**
+├── src/
+│   ├── components/
+│   │   ├── kid/
+│   │   │   ├── KidView.jsx         # Main kid interface
+│   │   │   ├── KidColumn.jsx       # Individual kid column
+│   │   │   ├── KidChoreList.jsx    # Chore list for kid view
+│   │   │   └── KidRewardList.jsx   # Reward list for kid view
+│   │   ├── parent/
+│   │   │   ├── ParentDashboard.jsx # Main parent interface
+│   │   │   ├── ParentChoreForm.jsx # Chore creation form
+│   │   │   ├── ApprovalQueue.jsx   # Chore approval panel
+│   │   │   ├── PenaltyReviewQueue.jsx # Penalty management **(NEW)**
+│   │   │   ├── RewardTab.jsx       # Reward management
+│   │   │   ├── XpLogTab.jsx        # XP history viewer
+│   │   │   └── DataManagement.jsx  # Import/export UI
+│   │   └── shared/
+│   │       ├── ErrorBoundary.jsx   # Error catcher
+│   │       ├── GracePeriodIndicator.jsx
+│   │       ├── RecurrencePreview.jsx
+│   │       └── RecurrenceCalendarPreview.jsx
+│   ├── data/
+│   │   └── models.js               # Data schemas and initialState
+│   ├── services/
+│   │   ├── dataService.js          # LocalStorage operations
+│   │   └── recurrenceService.js    # Recurrence calculations
+│   ├── utils/
+│   │   ├── gracePeriod.js          # Grace period logic
+│   │   ├── dateHelpers.js          # Date formatting
+│   │   └── validation.js           # Joi validation schemas
+│   ├── App.jsx                     # Root component
+│   ├── main.jsx                    # React entry point **(NEW)**
+│   └── index.css                   # Global styles
+├── .dockerignore                   # Docker ignore rules **(NEW)**
+├── Dockerfile                      # Docker configuration
+├── docker-compose.yml              # Multi-container setup
+├── package.json                    # Dependencies
+├── tailwind.config.js              # Tailwind config
+└── README.md                       # Project documentation
