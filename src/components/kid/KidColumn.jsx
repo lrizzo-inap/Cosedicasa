@@ -13,16 +13,21 @@ export default function KidColumn({ kid, chores, rewards, onChoreAction }) {
           <div className="text-lg">XP: {kid.xp}</div>
         </div>
       </div>
-      
+
       <div className="space-y-4">
-        <KidChoreList 
-          chores={chores} 
-          onChoreAction={onChoreAction}
+        <KidChoreList
+          chores={chores}
+          onChoreAction={onChoreAction} // Passa direttamente onChoreAction
         />
-        <KidRewardList 
+        <KidRewardList
           rewards={rewards}
           currentXp={kid.xp}
-          onClaim={(reward) => onChoreAction(reward.id, 'CLAIM_REWARD', reward.cost)}
+          // Modifica onClaim per passare un payload con rewardId e kidId
+          onClaim={(reward) => onChoreAction(null, 'CLAIM_REWARD', {
+              rewardId: reward.id,
+              kidId: kid.id,
+              // Non passare reward.cost qui, handleChoreAction lo troverà
+          })}
         />
       </div>
     </div>
