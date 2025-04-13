@@ -1,5 +1,5 @@
 import React from 'react';
-import { generateRecurrencePreview } from '../services/recurrenceService';
+import { generateRecurrencePreview } from '../../services/recurrenceService';
 import { format } from 'date-fns';
 
 const RecurrencePreview = ({ chore }) => {
