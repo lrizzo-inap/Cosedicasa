@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { validateChore } from '../../schemas/validation';
-import RecurrencePreview from '../RecurrencePreview';
+import RecurrencePreview from '../shared/RecurrencePreview';
 import toast from 'react-hot-toast';
 
 const ParentChoreForm = ({ onSave }) => {
