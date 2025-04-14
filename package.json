@@ -10,11 +10,44 @@
     "date-fns": "^2.30.0",
     "tailwindcss": "^3.3.0",
     "react-scripts": "5.0.1"
+    // Consider adding 'styled-components' and 'prop-types' here if they are used
+    // "styled-components": "^5.3.9", // Example version, check latest
+    // "prop-types": "^15.8.1"      // Example version, check latest
   },
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
+  },
+  "devDependencies": {
+    "eslint-plugin-react-hooks": "^4.6.0" // Added dependency for react-hooks rules
+    // Add other devDependencies if needed, e.g., for specific testing tools
+  },
+  "eslintConfig": {                        // Added ESLint configuration block
+    "extends": [
+      "react-app",                       // Use Create React App's base config
+      "react-app/jest"
+    ],
+    "plugins": [
+      "react-hooks"                        // Enable the react-hooks plugin
+    ],
+    "rules": {
+      "react-hooks/rules-of-hooks": "error", // Enforce Rules of Hooks
+      "react-hooks/exhaustive-deps": "warn", // Warn about missing dependencies in hooks
+      "react/prop-types": "warn"             // Optional: Warn about missing prop types
+    }
+  },
+  "browserslist": {                      // Often included by CRA, good practice
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
   }
 }
