@@ -56,14 +56,5 @@ class Penalty {
         this.date = date;
     }
 }
-// --- End Existing Model Classes ---
-
-// --- REMOVED ERRONEOUS REACT LOGIC ---
-// const [data, setData] = useState(loadData()); // <<< REMOVE THIS
-// useEffect(() => {                          // <<< REMOVE THIS BLOCK
-//   saveData(data);
-// }, [data]);
-// --- END REMOVED LOGIC ---
-
 
 export { User, Chore, Task, Penalty }; // Keep existing exports
